@@ -43,7 +43,7 @@ toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 320, 0, 380)
+mainFrame.Size = UDim2.new(0, 260, 0, 300)
 mainFrame.Position = UDim2.new(0.5, -160, 0.5, -190)
 mainFrame.BackgroundColor3 = Color3.fromRGB(250, 245, 230)
 mainFrame.BorderSizePixel = 2
@@ -69,7 +69,7 @@ inputLetra.TextSize = 25
 inputLetra.Parent = mainFrame
 
 local searchBtn = Instance.new("TextButton")
-searchBtn.Size = UDim2.new(0, 140, 0, 40)
+searchBtn.Size = UDim2.new(0, 110, 0, 40)
 searchBtn.Position = UDim2.new(0.5, -70, 0, 90)
 searchBtn.BackgroundColor3 = Color3.fromRGB(85, 170, 127)
 searchBtn.Text = "BUSCAR"
