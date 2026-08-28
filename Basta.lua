@@ -1,8 +1,7 @@
--- Pegá esto en un LocalScript dentro de StarterPlayerScripts o StarterCharacterScripts
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Base de datos completa (categorías: Nombre, Fruta/Verdura, Color, Lugar, Animal, Objeto)
+-- Base de datos completa
 local db = {
     A = {n={"Agustín","Ana","Alejo","Alma"}, f={"Ananá","Arándano","Avellana","Almendra"}, c={"Amarillo","Azul","Añil","Arena"}, l={"Argentina","Alemania","Atenas","Angola"}, a={"Araña","Águila","Abeja","Alce"}, o={"Anillo","Auto","Armario","Arpa"}},
     B = {n={"Bruno","Bárbara","Bautista","Belén"}, f={"Banana","Bergamota","Batata","Brócoli"}, c={"Blanco","Bordó","Beige","Bronce"}, l={"Bolivia","Brasil","Bélgica","Bogotá"}, a={"Burro","Búho","Ballena","Buitre"}, o={"Barco","Botella","Bici","Bolsa"}},
@@ -23,63 +22,132 @@ local db = {
     S = {n={"Santiago","Sofía","Sebastián","Sandra"}, f={"Sandía","Soja","Sésamo","Sauco"}, c={"Salmón","Sepia","Siena","Sable"}, l={"Suecia","Suiza","Siria","Sevilla"}, a={"Sapo","Serpiente","Salmón","Sanguijuela"}, o={"Silla","Sombrero","Sartén","Sobre"}},
     T = {n={"Tomás","Teresa","Thiago","Tatiana"}, f={"Tomate","Tamarindo","Tuna","Trigo"}, c={"Turquesa","Tomate","Trigo","Terracota"}, l={"Turquía","Tailandia","Túnez","Tokio"}, a={"Tigre","Tiburón","Topo","Tortuga"}, o={"Taza","Tenedor","Tijera","Teléfono"}},
     V = {n={"Valentín","Victoria","Vicente","Valeria"}, f={"Vainilla","Vid","Verdolaga","Vainita"}, c={"Verde","Violeta","Vino","Vainilla"}, l={"Venezuela","Vietnam","Valencia","Venecia"}, a={"Vaca","Venado","Víbora","Vicuña"}, o={"Vaso","Ventana","Vela","Vestido"}},
-    Z = {n={"Zacarías","Zoe","Zahir","Zaida"}, f={"Zanahoria","Zapallo","Zarzamora","Zapote"}, c={"Zafiro","Zinc","Zanahoria","Zafre"}, l={"Zambia","Zimbabue","Zaragoza","Zúrich"}, a={"Zorro","Zorrino","Zángano","Zebra"}, o={"Zapato","Zócalo","Zapatilla","Zarzo"}},
+    Z = {n={"Zacarías","Zoe","Zahir","Zaida"}, f={"Zanahoria","Zapallo","Zarzamora","Zapote"}, c={"Zafiro","Zinc","Zanahoria","Zafre"}, l={"Zambia","Zimbabue","Zaragoza","Zúrich"}, a={"Zorro","Zorrino","Zángano","Zebra"}, o={"Zapato","Zócalo","Zapatilla","Zarzo"}}
 }
 
 -- Construcción de la GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BastaGui"
+screenGui.Name = "MacheteBasta"
+screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
+-- Botón para abrir/cerrar (ideal para celu)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+toggleBtn.Text = "BASTA"
+toggleBtn.Font = Enum.Font.FredokaOne
+toggleBtn.TextSize = 14
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Parent = screenGui
+
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 350)
-mainFrame.Position = UDim2.new(0.5, -225, 0.5, -175)
-mainFrame.BackgroundColor3 = Color3.fromRGB(250, 245, 230) -- Estilo papel
+mainFrame.Size = UDim2.new(0, 320, 0, 380)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -190)
+mainFrame.BackgroundColor3 = Color3.fromRGB(250, 245, 230)
 mainFrame.BorderSizePixel = 2
+mainFrame.Visible = false -- Arranca oculto
 mainFrame.Parent = screenGui
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 50)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "¡BASTA! - Generador de Respuestas"
-titleLabel.Font = Enum.Font.FredokaOne
-titleLabel.TextSize = 24
-titleLabel.Parent = mainFrame
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "Poné la letra:"
+title.Font = Enum.Font.FredokaOne
+title.TextSize = 20
+title.Parent = mainFrame
+
+local inputLetra = Instance.new("TextBox")
+inputLetra.Size = UDim2.new(0, 80, 0, 40)
+inputLetra.Position = UDim2.new(0.5, -40, 0, 40)
+inputLetra.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+inputLetra.Text = ""
+inputLetra.PlaceholderText = "Ej: A"
+inputLetra.Font = Enum.Font.SourceSansBold
+inputLetra.TextSize = 25
+inputLetra.Parent = mainFrame
+
+local searchBtn = Instance.new("TextButton")
+searchBtn.Size = UDim2.new(0, 140, 0, 40)
+searchBtn.Position = UDim2.new(0.5, -70, 0, 90)
+searchBtn.BackgroundColor3 = Color3.fromRGB(85, 170, 127)
+searchBtn.Text = "BUSCAR"
+searchBtn.Font = Enum.Font.FredokaOne
+searchBtn.TextSize = 18
+searchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+searchBtn.Parent = mainFrame
 
 local resultText = Instance.new("TextLabel")
-resultText.Size = UDim2.new(1, -20, 1, -120)
-resultText.Position = UDim2.new(0, 10, 0, 60)
+resultText.Size = UDim2.new(1, -20, 1, -150)
+resultText.Position = UDim2.new(0, 10, 0, 140)
 resultText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-resultText.Text = "Presioná el botón para generar respuestas aleatorias."
+resultText.Text = "Acá van a aparecer las 4 opciones de cada categoría."
 resultText.Font = Enum.Font.SourceSansBold
-resultText.TextSize = 18
+resultText.TextScaled = true -- Se adapta a pantallas chicas
 resultText.TextXAlignment = Enum.TextXAlignment.Left
 resultText.TextYAlignment = Enum.TextYAlignment.Top
 resultText.Parent = mainFrame
 
-local generateButton = Instance.new("TextButton")
-generateButton.Size = UDim2.new(0, 200, 0, 40)
-generateButton.Position = UDim2.new(0.5, -100, 1, -50)
-generateButton.BackgroundColor3 = Color3.fromRGB(85, 170, 127)
-generateButton.Text = "GENERAR LETRA"
-generateButton.Font = Enum.Font.FredokaOne
-generateButton.TextSize = 20
-generateButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-generateButton.Parent = mainFrame
-
--- Lógica para seleccionar aleatoriamente
-local function generarBasta()
-    local letras = {"A","B","C","D","E","F","G","H","I","J","L","M","N","O","P","R","S","T","V","Z"}
-    local letraElegida = letras[math.random(1, #letras)]
-    local data = db[letraElegida]
+-- Lógica de búsqueda eficaz
+searchBtn.MouseButton1Click:Connect(function()
+    -- Agarra la letra, saca espacios y la pasa a mayúscula
+    local letra = inputLetra.Text:upper():match("%a") 
     
-    local rng = math.random(1, 4) -- Selecciona 1 de los 4 ejemplos disponibles
-    
-    local texto = string.format(
-        " Letra: %s\n\n - Nombre: %s\n - Fruta: %s\n - Color: %s\n - Ciudad/País: %s\n - Animal: %s\n - Objeto: %s",
-        letraElegida, data.n[rng], data.f[rng], data.c[rng], data.l[rng], data.a[rng], data.o[rng]
-    )
-    resultText.Text = texto
-end
+    if not letra then
+        resultText.Text = "Che, poné una letra válida."
+        return
+    end
 
-generateButton.MouseButton1Click:Connect(generarBasta)
+    local data = db[letra]
+    if data then
+        resultText.Text = string.format(
+            " RESPUESTAS CON '%s'\n\n Nombre: %s, %s, %s, %s\n Fruta: %s, %s, %s, %s\n Color: %s, %s, %s, %s\n Lugar: %s, %s, %s, %s\n Animal: %s, %s, %s, %s\n Objeto: %s, %s, %s, %s",
+            letra,
+            data.n[1], data.n[2], data.n[3], data.n[4],
+            data.f[1], data.f[2], data.f[3], data.f[4],
+            data.c[1], data.c[2], data.c[3], data.c[4],
+            data.l[1], data.l[2], data.l[3], data.l[4],
+            data.a[1], data.a[2], data.a[3], data.a[4],
+            data.o[1], data.o[2], data.o[3], data.o[4]
+        )
+    else
+        resultText.Text = "Todavía no cargué datos para la letra " .. letra
+    end
+end)
+
+-- Lógica para abrir y cerrar el menú
+toggleBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Lógica para arrastrar en celulares (Touch) y PC
+local UserInputService = game:GetService("UserInputService")
+local dragging, dragInput, dragStart, startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
