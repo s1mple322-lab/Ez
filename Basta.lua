@@ -1,7 +1,13 @@
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Base de datos completa
+-- Conexión a los eventos del juego
+local bastaEvents = ReplicatedStorage:WaitForChild("BastaEvents", 5)
+local submitAnswersEvent = bastaEvents and bastaEvents:WaitForChild("SubmitAnswers", 5)
+local startRoundEvent = bastaEvents and bastaEvents:WaitForChild("StartRound", 5)
+
+-- Base de datos completa (4 respuestas por categoría)
 local db = {
     A = {n={"Agustín","Ana","Alejo","Alma"}, f={"Ananá","Arándano","Avellana","Almendra"}, c={"Amarillo","Azul","Añil","Arena"}, l={"Argentina","Alemania","Atenas","Angola"}, a={"Araña","Águila","Abeja","Alce"}, o={"Anillo","Auto","Armario","Arpa"}},
     B = {n={"Bruno","Bárbara","Bautista","Belén"}, f={"Banana","Bergamota","Batata","Brócoli"}, c={"Blanco","Bordó","Beige","Bronce"}, l={"Bolivia","Brasil","Bélgica","Bogotá"}, a={"Burro","Búho","Ballena","Buitre"}, o={"Barco","Botella","Bici","Bolsa"}},
@@ -25,105 +31,179 @@ local db = {
     Z = {n={"Zacarías","Zoe","Zahir","Zaida"}, f={"Zanahoria","Zapallo","Zarzamora","Zapote"}, c={"Zafiro","Zinc","Zanahoria","Zafre"}, l={"Zambia","Zimbabue","Zaragoza","Zúrich"}, a={"Zorro","Zorrino","Zángano","Zebra"}, o={"Zapato","Zócalo","Zapatilla","Zarzo"}}
 }
 
--- Construcción de la GUI
+-- Configuración de GUI Chiquita
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MacheteBasta"
+screenGui.Name = "BastaBotGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
--- Botón para abrir/cerrar (ideal para celu)
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Size = UDim2.new(0, 45, 0, 45)
 toggleBtn.Position = UDim2.new(0, 10, 0, 10)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-toggleBtn.Text = "BASTA"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 100)
+toggleBtn.Text = "BOT"
 toggleBtn.Font = Enum.Font.FredokaOne
 toggleBtn.TextSize = 14
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 300)
-mainFrame.Position = UDim2.new(0.5, -160, 0.5, -190)
-mainFrame.BackgroundColor3 = Color3.fromRGB(250, 245, 230)
+mainFrame.Size = UDim2.new(0, 220, 0, 250) -- Tamaño bien compacto
+mainFrame.Position = UDim2.new(0.5, -110, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.fromRGB(245, 240, 225)
 mainFrame.BorderSizePixel = 2
-mainFrame.Visible = false -- Arranca oculto
+mainFrame.Visible = false
 mainFrame.Parent = screenGui
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Poné la letra:"
+title.Text = "BASTA BOT"
 title.Font = Enum.Font.FredokaOne
-title.TextSize = 20
+title.TextSize = 16
 title.Parent = mainFrame
 
+local autoToggle = Instance.new("TextButton")
+autoToggle.Size = UDim2.new(0, 180, 0, 30)
+autoToggle.Position = UDim2.new(0.5, -90, 0, 35)
+autoToggle.BackgroundColor3 = Color3.fromRGB(50, 160, 90)
+autoToggle.Text = "Auto-Submit: ON"
+autoToggle.Font = Enum.Font.SourceSansBold
+autoToggle.TextSize = 14
+autoToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoToggle.Parent = mainFrame
+
 local inputLetra = Instance.new("TextBox")
-inputLetra.Size = UDim2.new(0, 80, 0, 40)
-inputLetra.Position = UDim2.new(0.5, -40, 0, 40)
+inputLetra.Size = UDim2.new(0, 50, 0, 30)
+inputLetra.Position = UDim2.new(0.5, -85, 0, 72)
 inputLetra.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+inputLetra.PlaceholderText = "Letra"
 inputLetra.Text = ""
-inputLetra.PlaceholderText = "Ej: A"
 inputLetra.Font = Enum.Font.SourceSansBold
-inputLetra.TextSize = 25
+inputLetra.TextSize = 18
 inputLetra.Parent = mainFrame
 
 local searchBtn = Instance.new("TextButton")
-searchBtn.Size = UDim2.new(0, 110, 0, 40)
-searchBtn.Position = UDim2.new(0.5, -70, 0, 90)
-searchBtn.BackgroundColor3 = Color3.fromRGB(85, 170, 127)
-searchBtn.Text = "BUSCAR"
+searchBtn.Size = UDim2.new(0, 110, 0, 30)
+searchBtn.Position = UDim2.new(0.5, -25, 0, 72)
+searchBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+searchBtn.Text = "ENVIAR YA"
 searchBtn.Font = Enum.Font.FredokaOne
-searchBtn.TextSize = 18
+searchBtn.TextSize = 14
 searchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBtn.Parent = mainFrame
 
-local resultText = Instance.new("TextLabel")
-resultText.Size = UDim2.new(1, -20, 1, -150)
-resultText.Position = UDim2.new(0, 10, 0, 140)
-resultText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-resultText.Text = "Acá van a aparecer las 4 opciones de cada categoría."
-resultText.Font = Enum.Font.SourceSansBold
-resultText.TextScaled = true -- Se adapta a pantallas chicas
-resultText.TextXAlignment = Enum.TextXAlignment.Left
-resultText.TextYAlignment = Enum.TextYAlignment.Top
-resultText.Parent = mainFrame
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -20, 0, 120)
+statusText.Position = UDim2.new(0, 10, 0, 115)
+statusText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+statusText.Text = "Esperando inicio de ronda..."
+statusText.Font = Enum.Font.SourceSans
+statusText.TextSize = 12
+statusText.TextWrapped = true
+statusText.TextYAlignment = Enum.TextYAlignment.Top
+statusText.Parent = mainFrame
 
--- Lógica de búsqueda eficaz
-searchBtn.MouseButton1Click:Connect(function()
-    -- Agarra la letra, saca espacios y la pasa a mayúscula
-    local letra = inputLetra.Text:upper():match("%a") 
-    
-    if not letra then
-        resultText.Text = "Che, poné una letra válida."
+-- Variables de control
+local autoEnabled = true
+local lastRoundId = -1
+
+-- Función para construir el paquete de respuestas (Prueba las dos variantes posibles)
+local function construirRespuestas(letra)
+    local data = db[letra]
+    if not data then return nil end
+
+    -- Formato 1: Diccionario usando las claves estándar del juego
+    local formatoDict = {
+        Name = data.n[1],
+        Fruit = data.f[1],
+        Color = data.c[1],
+        ["City/Country"] = data.l[1],
+        CityCountry = data.l[1],
+        Animal = data.a[1],
+        Object = data.o[1]
+    }
+
+    -- Formato 2: Lista ordenada
+    local formatoArray = {
+        data.n[1],
+        data.f[1],
+        data.c[1],
+        data.l[1],
+        data.a[1],
+        data.o[1]
+    }
+
+    return formatoDict, formatoArray
+end
+
+-- Función principal para enviar al servidor
+local function mandarRespuestasAlServidor(letra, roundId)
+    if not submitAnswersEvent then
+        statusText.Text = "Error: Evento SubmitAnswers no encontrado."
         return
     end
 
-    local data = db[letra]
-    if data then
-        resultText.Text = string.format(
-            " RESPUESTAS CON '%s'\n\n Nombre: %s, %s, %s, %s\n Fruta: %s, %s, %s, %s\n Color: %s, %s, %s, %s\n Lugar: %s, %s, %s, %s\n Animal: %s, %s, %s, %s\n Objeto: %s, %s, %s, %s",
-            letra,
-            data.n[1], data.n[2], data.n[3], data.n[4],
-            data.f[1], data.f[2], data.f[3], data.f[4],
-            data.c[1], data.c[2], data.c[3], data.c[4],
-            data.l[1], data.l[2], data.l[3], data.l[4],
-            data.a[1], data.a[2], data.a[3], data.a[4],
-            data.o[1], data.o[2], data.o[3], data.o[4]
-        )
+    local dict, array = construirRespuestas(letra)
+    if not dict then
+        statusText.Text = "No hay datos cargados para la letra: " .. tostring(letra)
+        return
+    end
+
+    local idUsar = roundId or 1
+
+    -- Enviamos la estructura de diccionario (la más común en Roblox)
+    submitAnswersEvent:FireServer(dict, idUsar)
+    
+    -- También enviamos por backup el formato lista en caso de que use orden por índice
+    submitAnswersEvent:FireServer(array, idUsar)
+
+    statusText.Text = string.format(" Enviado para letra '%s' (Ronda %s):\n• %s\n• %s\n• %s\n• %s\n• %s\n• %s",
+        letra, tostring(idUsar), dict.Name, dict.Fruit, dict.Color, dict.CityCountry, dict.Animal, dict.Object)
+end
+
+-- Escuchar evento automático de inicio de ronda
+if startRoundEvent then
+    startRoundEvent.OnClientEvent:Connect(function(data)
+        if not autoEnabled then return end
+        
+        -- Evitamos duplicados en la misma ronda
+        if data and data.roundId and data.roundId == lastRoundId then return end
+        if data and data.roundId then lastRoundId = data.roundId end
+
+        local letra = data and data.letter and string.upper(data.letter)
+        local roundId = data and (data.roundId or data.round) or 1
+
+        if letra then
+            task.wait(1.2) -- Pequeño delay de red para simular tipeo humano
+            mandarRespuestasAlServidor(letra, roundId)
+        end
+    end)
+end
+
+-- Botones manuales de la GUI
+autoToggle.MouseButton1Click:Connect(function()
+    autoEnabled = not autoEnabled
+    autoToggle.Text = autoEnabled and "Auto-Submit: ON" or "Auto-Submit: OFF"
+    autoToggle.BackgroundColor3 = autoEnabled and Color3.fromRGB(50, 160, 90) or Color3.fromRGB(180, 60, 60)
+end)
+
+searchBtn.MouseButton1Click:Connect(function()
+    local letra = inputLetra.Text:upper():match("%a")
+    if letra then
+        mandarRespuestasAlServidor(letra, lastRoundId > 0 and lastRoundId or 1)
     else
-        resultText.Text = "Todavía no cargué datos para la letra " .. letra
+        statusText.Text = "Ingresá una letra válida."
     end
 end)
 
--- Lógica para abrir y cerrar el menú
 toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
--- Lógica para arrastrar en celulares (Touch) y PC
+-- Sistema para arrastrar la ventana con Touch/Mouse
 local UserInputService = game:GetService("UserInputService")
-local dragging, dragInput, dragStart, startPos
+local dragging, dragStart, startPos
 
 mainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -139,15 +219,10 @@ mainFrame.InputBegan:Connect(function(input)
     end
 end)
 
-mainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
 UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
+
