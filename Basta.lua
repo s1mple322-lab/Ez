@@ -2,11 +2,8 @@ local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Conexión a los eventos del juego
 local bastaEvents = ReplicatedStorage:WaitForChild("BastaEvents", 5)
-local submitAnswersEvent = bastaEvents and bastaEvents:WaitForChild("SubmitAnswers", 5)
 local startRoundEvent = bastaEvents and bastaEvents:WaitForChild("StartRound", 5)
-local forceSubmitEvent = bastaEvents and bastaEvents:WaitForChild("ForceSubmitAnswers", 5)
 
 -- Base de datos completa
 local db = {
@@ -32,13 +29,13 @@ local db = {
     Z = {n={"Zacarías","Zoe","Zahir","Zaida"}, f={"Zanahoria","Zapallo","Zarzamora","Zapote"}, c={"Zafiro","Zinc","Zanahoria","Zafre"}, l={"Zambia","Zimbabue","Zaragoza","Zúrich"}, a={"Zorro","Zorrino","Zángano","Zebra"}, o={"Zapato","Zócalo","Zapatilla","Zarzo"}}
 }
 
--- Configuración de la GUI Chiquita
+-- Configuración GUI Chiquita
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BastaBotGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
-local toggleBtn = Instance.new("TextButton")
+local toggleBtn = Instance.new("TextButton", screenGui)
 toggleBtn.Size = UDim2.new(0, 45, 0, 45)
 toggleBtn.Position = UDim2.new(0, 10, 0, 10)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 100)
@@ -46,162 +43,115 @@ toggleBtn.Text = "BOT"
 toggleBtn.Font = Enum.Font.FredokaOne
 toggleBtn.TextSize = 14
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.Parent = screenGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 250)
-mainFrame.Position = UDim2.new(0.5, -110, 0.5, -125)
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 220, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -110, 0.5, -90)
 mainFrame.BackgroundColor3 = Color3.fromRGB(245, 240, 225)
 mainFrame.BorderSizePixel = 2
 mainFrame.Visible = false
-mainFrame.Parent = screenGui
 
-local title = Instance.new("TextLabel")
+local title = Instance.new("TextLabel", mainFrame)
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "BASTA BOT"
+title.Text = "BASTA BOT (Interceptor)"
 title.Font = Enum.Font.FredokaOne
-title.TextSize = 16
-title.Parent = mainFrame
+title.TextSize = 14
 
-local autoToggle = Instance.new("TextButton")
+local autoToggle = Instance.new("TextButton", mainFrame)
 autoToggle.Size = UDim2.new(0, 180, 0, 30)
 autoToggle.Position = UDim2.new(0.5, -90, 0, 35)
 autoToggle.BackgroundColor3 = Color3.fromRGB(50, 160, 90)
-autoToggle.Text = "Auto-Submit: ON"
+autoToggle.Text = "Auto-Inyectar: ON"
 autoToggle.Font = Enum.Font.SourceSansBold
 autoToggle.TextSize = 14
 autoToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoToggle.Parent = mainFrame
 
-local inputLetra = Instance.new("TextBox")
-inputLetra.Size = UDim2.new(0, 50, 0, 30)
-inputLetra.Position = UDim2.new(0.5, -85, 0, 72)
-inputLetra.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-inputLetra.PlaceholderText = "Letra"
-inputLetra.Text = ""
-inputLetra.Font = Enum.Font.SourceSansBold
-inputLetra.TextSize = 18
-inputLetra.Parent = mainFrame
-
-local searchBtn = Instance.new("TextButton")
-searchBtn.Size = UDim2.new(0, 110, 0, 30)
-searchBtn.Position = UDim2.new(0.5, -25, 0, 72)
-searchBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
-searchBtn.Text = "ENVIAR YA"
-searchBtn.Font = Enum.Font.FredokaOne
-searchBtn.TextSize = 14
-searchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-searchBtn.Parent = mainFrame
-
-local statusText = Instance.new("TextLabel")
-statusText.Size = UDim2.new(1, -20, 0, 120)
-statusText.Position = UDim2.new(0, 10, 0, 115)
+local statusText = Instance.new("TextLabel", mainFrame)
+statusText.Size = UDim2.new(1, -20, 0, 100)
+statusText.Position = UDim2.new(0, 10, 0, 75)
 statusText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-statusText.Text = "Esperando inicio de ronda..."
-statusText.Font = Enum.Font.SourceSans
-statusText.TextSize = 12
+statusText.Text = "Esperando que empiece la ronda..."
+statusText.Font = Enum.Font.SourceSansBold
+statusText.TextSize = 14
 statusText.TextWrapped = true
 statusText.TextYAlignment = Enum.TextYAlignment.Top
-statusText.Parent = mainFrame
 
--- Variables de control
+-- Lógica central
 local autoEnabled = true
-local lastRoundId = -1
+local letraActual = ""
 
--- Función principal para enviar al servidor
-local function mandarRespuestasAlServidor(letra, roundId)
-    if not submitAnswersEvent then
-        statusText.Text = "Error: Evento SubmitAnswers no encontrado."
-        return
-    end
-
-    local data = db[letra]
-    if not data then
-        statusText.Text = "No hay datos cargados para la letra: " .. tostring(letra)
-        return
-    end
-
-    local rng = math.random(1, 4) -- Elegimos una de las 4 opciones al azar para no poner siempre lo mismo
-
-    -- ACÁ ESTÁ LA MAGIA: Las llaves exactas que sacaste del Cobalt
-    local paquetePerfecto = {
-        Nombre = data.n[rng],
-        Objeto = data.o[rng],
-        Color = data.c[rng],
-        CiudadPais = data.l[rng],
-        Fruta = data.f[rng],
-        Animal = data.a[rng]
-    }
-
-    local idUsar = roundId or 1
-
-    -- Enviamos al servidor
-    submitAnswersEvent:FireServer(paquetePerfecto, idUsar)
-    
-    -- Le metemos el evento "Stop/Basta" para que corte el tiempo automáticamente si existe
-    if forceSubmitEvent then
-        pcall(function() forceSubmitEvent:FireServer(idUsar) end)
-    end
-
-    statusText.Text = string.format(" Enviado: '%s' (Ronda %s)\n\n¡Respuestas mandadas con éxito!", letra, tostring(idUsar))
-end
-
--- Escuchar evento automático
+-- 1. Capturamos la letra apenas arranca la ronda
 if startRoundEvent then
     startRoundEvent.OnClientEvent:Connect(function(data)
-        if not autoEnabled then return end
-        
-        if data and data.roundId and data.roundId == lastRoundId then return end
-        if data and data.roundId then lastRoundId = data.roundId end
-
-        local letra = data and data.letter and string.upper(data.letter)
-        local roundId = data and (data.roundId or data.round) or 1
-
-        if letra then
-            statusText.Text = "Detectada letra " .. letra .. ". Mandando en 1 seg..."
-            task.wait(math.random(1, 2)) -- Simulamos que tardamos un toque en escribir
-            mandarRespuestasAlServidor(letra, roundId)
+        if data and data.letter then
+            -- Limpiamos espacios y aseguramos mayúscula
+            letraActual = string.upper(data.letter:match("%a")) 
+            statusText.Text = "Ronda Iniciada.\nLetra detectada: " .. letraActual .. "\n\nDejá que el tiempo termine solo o tocá BASTA."
         end
     end)
 end
 
--- Botones manuales
-autoToggle.MouseButton1Click:Connect(function()
-    autoEnabled = not autoEnabled
-    autoToggle.Text = autoEnabled and "Auto-Submit: ON" or "Auto-Submit: OFF"
-    autoToggle.BackgroundColor3 = autoEnabled and Color3.fromRGB(50, 160, 90) or Color3.fromRGB(180, 60, 60)
+-- 2. EL INTERCEPTOR MAGICO (Hook)
+local viejoNamecall
+viejoNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    
+    -- Si el juego intenta mandar algo al servidor por los eventos SubmitAnswers o ForceSubmitAnswers
+    if tostring(method) == "FireServer" and (self.Name == "SubmitAnswers" or self.Name == "ForceSubmitAnswers") then
+        if autoEnabled and letraActual ~= "" and db[letraActual] then
+            
+            local data = db[letraActual]
+            local rng = math.random(1, 4)
+            
+            -- Armamos el paquete que queremos que vea el servidor
+            local tablaInyectada = {
+                Nombre = data.n[rng],
+                Objeto = data.o[rng],
+                Color = data.c[rng],
+                CiudadPais = data.l[rng],
+                Fruta = data.f[rng],
+                Animal = data.a[rng]
+            }
+            
+            -- Reemplazamos el primer argumento (la tabla original vacía) por nuestra tabla llena
+            local argumentos = {...}
+            argumentos[1] = tablaInyectada
+            
+            statusText.Text = "¡BOOM! El juego intentó mandar vacío y lo inyectamos con respuestas con '" .. letraActual .. "'"
+            
+            -- Dejamos que el envío siga, pero con nuestra data alterada
+            return viejoNamecall(self, unpack(argumentos))
+        end
+    end
+    
+    return viejoNamecall(self, ...)
 end)
 
-searchBtn.MouseButton1Click:Connect(function()
-    local letra = inputLetra.Text:upper():match("%a")
-    if letra then
-        mandarRespuestasAlServidor(letra, lastRoundId > 0 and lastRoundId or 1)
-    else
-        statusText.Text = "Ingresá una letra válida."
-    end
+-- Botón para activar/desactivar
+autoToggle.MouseButton1Click:Connect(function()
+    autoEnabled = not autoEnabled
+    autoToggle.Text = autoEnabled and "Auto-Inyectar: ON" or "Auto-Inyectar: OFF"
+    autoToggle.BackgroundColor3 = autoEnabled and Color3.fromRGB(50, 160, 90) or Color3.fromRGB(180, 60, 60)
 end)
 
 toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
--- Sistema Touch para arrastrar en celu
+-- Soporte Táctil
 local UserInputService = game:GetService("UserInputService")
 local dragging, dragStart, startPos
-
 mainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
-        
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then dragging = false end
         end)
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
