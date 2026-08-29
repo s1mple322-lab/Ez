@@ -1,6 +1,6 @@
 -- ╔══════════════════════════════════════════════════════════╗
--- ║          🎲 BASTA BOT v5  —  Fix Visible + TablaBasta   ║
--- ║  Apunta directamente a PlayerGui.TablaBasta             ║
+-- ║          🎲 BASTA BOT v5.1 — Fix Visible + TablaBasta    ║
+-- ║  Apunta directamente a PlayerGui.NewTablaBastagui        ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 local Players    = game:GetService("Players")
@@ -49,14 +49,9 @@ local isActive      = false
 local currentLetter = ""
 local autoConn      = nil
 local logLines      = {}
-local LogLabel      = nil   -- se asigna después de crear la GUI
+local LogLabel      = nil
 
--- Nombre conocido del GUI del juego (del error en consola)
-local GAME_GUI_NAME = "TablaBasta"
-
--- Orden de columnas visible en pantalla (izquierda → derecha)
--- Name | Fruit | City/Country | Animal | Object
--- Mapeamos en ese orden por posición X si no logramos identificar por texto
+local GAME_GUI_NAME = "NewTablaBastagui"
 local POSITIONAL_CATS = {"Nombre","Fruta","CiudadPais","Animal","Objeto","Color"}
 
 -- ════════════════════════════════════════════════════════════
@@ -70,7 +65,7 @@ local function addLog(msg)
 end
 
 -- ════════════════════════════════════════════════════════════
---  SAFE .Visible  (ScreenGui no tiene Visible → pcall)
+--  SAFE .Visible
 -- ════════════════════════════════════════════════════════════
 local function safeVisible(obj)
     local ok, v = pcall(function() return obj.Visible end)
@@ -85,8 +80,7 @@ local function getGameGui()
 end
 
 -- ════════════════════════════════════════════════════════════
---  ENCONTRAR TODOS LOS TEXTBOX DENTRO DE TablaBasta
---  Devuelve lista ordenada por posición X (columnas de izquierda a derecha)
+--  ENCONTRAR TODOS LOS TEXTBOX
 -- ════════════════════════════════════════════════════════════
 local CAT_PATTERNS = {
     Nombre     = {"name","nombre","nom"},
@@ -133,50 +127,40 @@ local function identifyCat(box)
     return nil
 end
 
--- Devuelve (mapped, allBoxes)
---   mapped   = { Nombre=box, Fruta=box, ... }  ← identificados por contexto
---   allBoxes = lista completa ordenada por AbsolutePosition.X
 local function findTextBoxes()
     local gameGui = getGameGui()
-    local root    = gameGui or PlayerGui   -- fallback: buscar en toda la GUI
+    local root    = gameGui or PlayerGui
 
     local allBoxes = {}
     for _, obj in ipairs(root:GetDescendants()) do
-        -- FIX: saltar objetos sin Visible (ScreenGui, etc.) con pcall
         if not obj:IsA("TextBox") then continue end
-        -- Excluir nuestra GUI
         local node = obj
         while node and node ~= PlayerGui do
             if node.Name == OUR_GUI then goto continue_outer end
             node = node.Parent
         end
-        -- Solo cajas visibles (safe)
         if not safeVisible(obj) then goto continue_outer end
         table.insert(allBoxes, obj)
         ::continue_outer::
     end
 
-    -- Ordenar por posición X absoluta (columnas de izquierda a derecha)
     table.sort(allBoxes, function(a, b)
         local ax = pcall(function() return a.AbsolutePosition.X end) and a.AbsolutePosition.X or 0
         local bx = pcall(function() return b.AbsolutePosition.X end) and b.AbsolutePosition.X or 0
         return ax < bx
     end)
 
-    -- Intentar identificar por contexto de texto
     local mapped = {}
     for _, box in ipairs(allBoxes) do
         local cat = identifyCat(box)
-        if cat and not mapped[cat] then
-            mapped[cat] = box
-        end
+        if cat and not mapped[cat] then mapped[cat] = box end
     end
 
     return mapped, allBoxes
 end
 
 -- ════════════════════════════════════════════════════════════
---  BUSCAR BOTÓN BASTA  (dentro de TablaBasta primero)
+--  BUSCAR BOTÓN BASTA
 -- ════════════════════════════════════════════════════════════
 local BASTA_KW = {"basta","stop","submit","enviar","parar","done","finish","listo"}
 
@@ -185,22 +169,19 @@ local function findBastaButton()
     local root    = gameGui or PlayerGui
 
     for _, obj in ipairs(root:GetDescendants()) do
-        -- FIX: usar safeVisible en lugar de .Visible directo
         if not safeVisible(obj) then continue end
         if not (obj:IsA("TextButton") or obj:IsA("ImageButton")) then continue end
         local name  = obj.Name:lower()
         local label = obj:IsA("TextButton") and obj.Text:lower() or ""
         for _, kw in ipairs(BASTA_KW) do
-            if name:find(kw,1,true) or label:find(kw,1,true) then
-                return obj
-            end
+            if name:find(kw,1,true) or label:find(kw,1,true) then return obj end
         end
     end
     return nil
 end
 
 -- ════════════════════════════════════════════════════════════
---  DETECTAR LETRA ACTUAL DEL JUEGO
+--  DETECTAR LETRA ACTUAL
 -- ════════════════════════════════════════════════════════════
 local function detectGameLetter()
     local gameGui = getGameGui()
@@ -224,11 +205,7 @@ end
 local function getAnswers(letter)
     local L    = string.upper(tostring(letter or "A"):sub(1,1))
     local data = DB[L]
-    if not data then
-        addLog("⚠️ '"..L.."' sin DB → fallback")
-        return {Nombre=L.."ombre",Objeto=L.."bjeto",Color=L.."olor",
-                CiudadPais=L.."iudad",Fruta=L.."ruta",Animal=L.."nimal"}
-    end
+    if not data then return {Nombre=L.."ombre",Objeto=L.."bjeto",Color=L.."olor",CiudadPais=L.."iudad",Fruta=L.."ruta",Animal=L.."nimal"} end
     return {
         Nombre     = data.Nombre    [math.random(#data.Nombre)],
         Objeto     = data.Objeto    [math.random(#data.Objeto)],
@@ -240,7 +217,7 @@ local function getAnswers(letter)
 end
 
 -- ════════════════════════════════════════════════════════════
---  ESCRIBIR EN UN TEXTBOX COMO INPUT REAL
+--  ESCRIBIR EN TEXTBOX
 -- ════════════════════════════════════════════════════════════
 local function typeInBox(box, text)
     pcall(function() box:CaptureFocus() end)
@@ -252,7 +229,7 @@ local function typeInBox(box, text)
 end
 
 -- ════════════════════════════════════════════════════════════
---  REMOTES (backup FireServer)
+--  REMOTES BACKUP
 -- ════════════════════════════════════════════════════════════
 local SubmitAnswers    = nil
 local ForceSubmitEvent = nil
@@ -285,7 +262,6 @@ local function doSubmit()
     local mapped, allBoxes = findTextBoxes()
     local filled = 0
 
-    -- ── Estrategia 1: cajas identificadas por contexto
     for cat, box in pairs(mapped) do
         if answers[cat] then
             typeInBox(box, answers[cat])
@@ -294,7 +270,6 @@ local function doSubmit()
         end
     end
 
-    -- ── Estrategia 2: cajas sin identificar → asignar por orden posicional
     if #allBoxes > filled then
         local usedCats = {}
         for cat in pairs(mapped) do usedCats[cat] = true end
@@ -304,7 +279,6 @@ local function doSubmit()
         end
         local ri = 1
         for _, box in ipairs(allBoxes) do
-            -- ¿Ya fue llenada?
             local alreadyFilled = false
             for _, mb in pairs(mapped) do
                 if mb == box then alreadyFilled = true; break end
@@ -321,7 +295,6 @@ local function doSubmit()
     addLog(string.format("📝 %d/%d cajas llenadas", filled, #allBoxes))
     task.wait(0.15)
 
-    -- ── Estrategia 3: clic en botón BASTA del juego
     local btn = findBastaButton()
     if btn then
         addLog("🖱️ Clic → " .. btn.Name)
@@ -331,7 +304,6 @@ local function doSubmit()
         addLog("⚠️ Botón BASTA no hallado")
     end
 
-    -- ── Estrategia 4: si no encontró nada, FireServer directo
     if filled == 0 and not btn then
         addLog("🔁 UI vacía → FireServer directo")
         fireServerDirect(answers)
@@ -349,133 +321,102 @@ ScreenGui.IgnoreGuiInset=true; ScreenGui.DisplayOrder=9999
 ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent=PlayerGui
 
--- Botón flotante
 local FloatBtn=Instance.new("TextButton")
 FloatBtn.Name="FloatBtn"; FloatBtn.Size=UDim2.new(0,46,0,46)
-FloatBtn.Position=UDim2.new(0,6,0.44,0)
-FloatBtn.BackgroundColor3=Color3.fromRGB(20,20,42)
-FloatBtn.TextColor3=Color3.fromRGB(255,255,255)
-FloatBtn.Text="🎲"; FloatBtn.Font=Enum.Font.GothamBold
-FloatBtn.TextSize=22; FloatBtn.BorderSizePixel=0; FloatBtn.ZIndex=50
-FloatBtn.Parent=ScreenGui
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,14);c.Parent=FloatBtn
-   local s=Instance.new("UIStroke");s.Color=Color3.fromRGB(100,100,220);s.Thickness=1.5;s.Parent=FloatBtn end
+FloatBtn.Position=UDim2.new(0,6,0.44,0); FloatBtn.BackgroundColor3=Color3.fromRGB(20,20,42)
+FloatBtn.TextColor3=Color3.fromRGB(255,255,255); FloatBtn.Text="🎲"
+FloatBtn.Font=Enum.Font.GothamBold; FloatBtn.TextSize=22; FloatBtn.BorderSizePixel=0
+FloatBtn.ZIndex=50; FloatBtn.Parent=ScreenGui
+Instance.new("UICorner", FloatBtn).CornerRadius=UDim.new(0,14)
+Instance.new("UIStroke", FloatBtn).Color, Instance.new("UIStroke", FloatBtn).Thickness = Color3.fromRGB(100,100,220), 1.5
 
--- Ventana 225×305
 local W,H=225,305
 local Frame=Instance.new("Frame")
 Frame.Name="MainFrame"; Frame.Size=UDim2.new(0,W,0,H)
-Frame.Position=UDim2.new(0,58,0.26,0)
-Frame.BackgroundColor3=Color3.fromRGB(13,13,26)
-Frame.BorderSizePixel=0; Frame.Visible=false; Frame.Active=true; Frame.ZIndex=40
-Frame.Parent=ScreenGui
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,12);c.Parent=Frame
-   local s=Instance.new("UIStroke");s.Color=Color3.fromRGB(78,78,195);s.Thickness=1.5;s.Parent=Frame end
+Frame.Position=UDim2.new(0,58,0.26,0); Frame.BackgroundColor3=Color3.fromRGB(13,13,26)
+Frame.BorderSizePixel=0; Frame.Visible=false; Frame.Active=true; Frame.ZIndex=40; Frame.Parent=ScreenGui
+Instance.new("UICorner", Frame).CornerRadius=UDim.new(0,12)
+Instance.new("UIStroke", Frame).Color, Instance.new("UIStroke", Frame).Thickness = Color3.fromRGB(78,78,195), 1.5
 
--- TitleBar
 local TitleBar=Instance.new("Frame")
 TitleBar.Name="TitleBar"; TitleBar.Size=UDim2.new(1,0,0,32)
-TitleBar.BackgroundColor3=Color3.fromRGB(28,28,56)
-TitleBar.BorderSizePixel=0; TitleBar.ZIndex=41; TitleBar.Active=true; TitleBar.Parent=Frame
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,12);c.Parent=TitleBar
-   local p=Instance.new("Frame");p.Size=UDim2.new(1,0,0.5,0);p.Position=UDim2.new(0,0,0.5,0)
-   p.BackgroundColor3=Color3.fromRGB(28,28,56);p.BorderSizePixel=0;p.ZIndex=41;p.Parent=TitleBar end
-local TitleLbl=Instance.new("TextLabel")
-TitleLbl.Size=UDim2.new(1,-8,1,0);TitleLbl.Position=UDim2.new(0,8,0,0)
-TitleLbl.BackgroundTransparency=1;TitleLbl.Text="🎲  Basta Bot  v5"
-TitleLbl.TextColor3=Color3.fromRGB(180,180,255);TitleLbl.Font=Enum.Font.GothamBold
-TitleLbl.TextSize=13;TitleLbl.TextXAlignment=Enum.TextXAlignment.Left
-TitleLbl.ZIndex=42;TitleLbl.Parent=TitleBar
+TitleBar.BackgroundColor3=Color3.fromRGB(28,28,56); TitleBar.BorderSizePixel=0
+TitleBar.ZIndex=41; TitleBar.Active=true; TitleBar.Parent=Frame
+Instance.new("UICorner", TitleBar).CornerRadius=UDim.new(0,12)
+local p=Instance.new("Frame"); p.Size=UDim2.new(1,0,0.5,0); p.Position=UDim2.new(0,0,0.5,0)
+p.BackgroundColor3=Color3.fromRGB(28,28,56); p.BorderSizePixel=0; p.ZIndex=41; p.Parent=TitleBar
 
--- Helpers
+local TitleLbl=Instance.new("TextLabel")
+TitleLbl.Size=UDim2.new(1,-8,1,0); TitleLbl.Position=UDim2.new(0,8,0,0)
+TitleLbl.BackgroundTransparency=1; TitleLbl.Text="🎲  Basta Bot  v5.1"
+TitleLbl.TextColor3=Color3.fromRGB(180,180,255); TitleLbl.Font=Enum.Font.GothamBold
+TitleLbl.TextSize=13; TitleLbl.TextXAlignment=Enum.TextXAlignment.Left; TitleLbl.ZIndex=42; TitleLbl.Parent=TitleBar
+
 local function mkbtn(txt,y,bg)
     local b=Instance.new("TextButton")
-    b.Size=UDim2.new(0,W-14,0,29);b.Position=UDim2.new(0,7,0,y)
-    b.BackgroundColor3=bg or Color3.fromRGB(44,44,86)
-    b.TextColor3=Color3.fromRGB(232,232,255);b.Text=txt
-    b.Font=Enum.Font.GothamBold;b.TextSize=11;b.BorderSizePixel=0;b.ZIndex=41;b.Parent=Frame
-    local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,8);c.Parent=b;return b
+    b.Size=UDim2.new(0,W-14,0,29); b.Position=UDim2.new(0,7,0,y)
+ b.Position=UDim2.new(0,7,0,y)
+    b.BackgroundColor3=bg or Color3.fromRGB(44,44,86); b.TextColor3=Color3.fromRGB(232,232,255)
+    b.Text=txt; b.Font=Enum.Font.GothamBold; b.TextSize=11; b.BorderSizePixel=0; b.ZIndex=41; b.Parent=Frame
+    Instance.new("UICorner", b).CornerRadius=UDim.new(0,8); return b
 end
 local function lbl(txt,y,w,col)
     local l=Instance.new("TextLabel")
-    l.Size=UDim2.new(0,w or W-14,0,18);l.Position=UDim2.new(0,7,0,y)
-    l.BackgroundTransparency=1;l.Text=txt
-    l.TextColor3=col or Color3.fromRGB(155,155,205)
-    l.Font=Enum.Font.Gotham;l.TextSize=11
-    l.TextXAlignment=Enum.TextXAlignment.Left;l.ZIndex=41;l.Parent=Frame;return l
+    l.Size=UDim2.new(0,w or W-14,0,18); l.Position=UDim2.new(0,7,0,y)
+    l.BackgroundTransparency=1; l.Text=txt; l.TextColor3=col or Color3.fromRGB(155,155,205)
+    l.Font=Enum.Font.Gotham; l.TextSize=11; l.TextXAlignment=Enum.TextXAlignment.Left; l.ZIndex=41; l.Parent=Frame; return l
 end
 
--- Widgets
 local StatusLbl = lbl("Estado: ⛔ INACTIVO", 36, W-14, Color3.fromRGB(255,75,75))
 lbl("Letra:", 62, 46)
 
 local LetterBox=Instance.new("TextBox")
-LetterBox.Size=UDim2.new(0,44,0,25);LetterBox.Position=UDim2.new(0,50,0,60)
-LetterBox.BackgroundColor3=Color3.fromRGB(30,30,54)
-LetterBox.TextColor3=Color3.fromRGB(255,230,55)
-LetterBox.PlaceholderText="?";LetterBox.Text=""
-LetterBox.Font=Enum.Font.GothamBold;LetterBox.TextSize=17
-LetterBox.ClearTextOnFocus=false;LetterBox.BorderSizePixel=0
-LetterBox.ZIndex=42;LetterBox.Parent=Frame
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,7);c.Parent=LetterBox
-   local s=Instance.new("UIStroke");s.Color=Color3.fromRGB(85,85,175);s.Thickness=1;s.Parent=LetterBox end
+LetterBox.Size=UDim2.new(0,44,0,25); LetterBox.Position=UDim2.new(0,50,0,60)
+LetterBox.BackgroundColor3=Color3.fromRGB(30,30,54); LetterBox.TextColor3=Color3.fromRGB(255,230,55)
+LetterBox.PlaceholderText="?"; LetterBox.Text=""; LetterBox.Font=Enum.Font.GothamBold
+LetterBox.TextSize=17; LetterBox.ClearTextOnFocus=false; LetterBox.BorderSizePixel=0; LetterBox.ZIndex=42; LetterBox.Parent=Frame
+Instance.new("UICorner", LetterBox).CornerRadius=UDim.new(0,7)
+Instance.new("UIStroke", LetterBox).Color, Instance.new("UIStroke", LetterBox).Thickness = Color3.fromRGB(85,85,175), 1
 
 local AutoLetterBtn=Instance.new("TextButton")
-AutoLetterBtn.Size=UDim2.new(0,W-14-56,0,25);AutoLetterBtn.Position=UDim2.new(0,100,0,60)
-AutoLetterBtn.BackgroundColor3=Color3.fromRGB(28,60,40)
-AutoLetterBtn.TextColor3=Color3.fromRGB(100,245,140)
-AutoLetterBtn.Text="🎯 Auto-detectar letra";AutoLetterBtn.Font=Enum.Font.GothamBold
-AutoLetterBtn.TextSize=10;AutoLetterBtn.BorderSizePixel=0;AutoLetterBtn.ZIndex=42;AutoLetterBtn.Parent=Frame
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,7);c.Parent=AutoLetterBtn end
+AutoLetterBtn.Size=UDim2.new(0,W-14-56,0,25); AutoLetterBtn.Position=UDim2.new(0,100,0,60)
+AutoLetterBtn.BackgroundColor3=Color3.fromRGB(28,60,40); AutoLetterBtn.TextColor3=Color3.fromRGB(100,245,140)
+AutoLetterBtn.Text="🎯 Auto-detectar letra"; AutoLetterBtn.Font=Enum.Font.GothamBold; AutoLetterBtn.TextSize=10
+AutoLetterBtn.BorderSizePixel=0; AutoLetterBtn.ZIndex=42; AutoLetterBtn.Parent=Frame
+Instance.new("UICorner", AutoLetterBtn).CornerRadius=UDim.new(0,7)
 
 local ToggleBot = mkbtn("⚡  ACTIVAR  AUTO-BOT",        93, Color3.fromRGB(40,40,82))
 local ScanBtn   = mkbtn("🔎  ESCANEAR GUI DEL JUEGO",   130, Color3.fromRGB(55,42,10))
 local ManualBtn = mkbtn("📤  LLENAR + ENVIAR (manual)",  167, Color3.fromRGB(30,75,38))
 
--- Mini-log
 local logBg=Instance.new("Frame")
-logBg.Size=UDim2.new(0,W-14,0,80);logBg.Position=UDim2.new(0,7,0,204)
-logBg.BackgroundColor3=Color3.fromRGB(7,7,18);logBg.BorderSizePixel=0;logBg.ZIndex=41;logBg.Parent=Frame
-do local c=Instance.new("UICorner");c.CornerRadius=UDim.new(0,6);c.Parent=logBg end
+logBg.Size=UDim2.new(0,W-14,0,80); logBg.Position=UDim2.new(0,7,0,204)
+logBg.BackgroundColor3=Color3.fromRGB(7,7,18); logBg.BorderSizePixel=0; logBg.ZIndex=41; logBg.Parent=Frame
+Instance.new("UICorner", logBg).CornerRadius=UDim.new(0,6)
 LogLabel=Instance.new("TextLabel")
-LogLabel.Size=UDim2.new(1,-6,1,-4);LogLabel.Position=UDim2.new(0,3,0,2)
-LogLabel.BackgroundTransparency=1;LogLabel.Text="— log —"
-LogLabel.TextColor3=Color3.fromRGB(95,175,95)
-LogLabel.Font=Enum.Font.RobotoMono;LogLabel.TextSize=9
-LogLabel.TextXAlignment=Enum.TextXAlignment.Left
-LogLabel.TextYAlignment=Enum.TextYAlignment.Top
-LogLabel.TextWrapped=true;LogLabel.ZIndex=42;LogLabel.Parent=logBg
+LogLabel.Size=UDim2.new(1,-6,1,-4); LogLabel.Position=UDim2.new(0,3,0,2)
+LogLabel.BackgroundTransparency=1; LogLabel.Text="— log —"; LogLabel.TextColor3=Color3.fromRGB(95,175,95)
+LogLabel.Font=Enum.Font.RobotoMono; LogLabel.TextSize=9; LogLabel.TextXAlignment=Enum.TextXAlignment.Left
+LogLabel.TextYAlignment=Enum.TextYAlignment.Top; LogLabel.TextWrapped=true; LogLabel.ZIndex=42; LogLabel.Parent=logBg
 
--- ════════════════════════════════════════════════════════════
---  DRAG
--- ════════════════════════════════════════════════════════════
 local dragging,dragInput,dragStart,startPos=false,nil,nil,nil
 TitleBar.InputBegan:Connect(function(inp)
-    local t=inp.UserInputType
-    if t==Enum.UserInputType.MouseButton1 or t==Enum.UserInputType.Touch then
-        dragging=true;dragStart=inp.Position;startPos=Frame.Position
-        inp.Changed:Connect(function()
-            if inp.UserInputState==Enum.UserInputState.End then dragging=false end
-        end)
+    if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+        dragging=true; dragStart=inp.Position; startPos=Frame.Position
+        inp.Changed:Connect(function() if inp.UserInputState==Enum.UserInputState.End then dragging=false end end)
     end
 end)
 TitleBar.InputChanged:Connect(function(inp)
-    local t=inp.UserInputType
-    if t==Enum.UserInputType.MouseMovement or t==Enum.UserInputType.Touch then dragInput=inp end
+    if inp.UserInputType==Enum.UserInputType.MouseMovement or inp.UserInputType==Enum.UserInputType.Touch then dragInput=inp end
 end)
 UserInput.InputChanged:Connect(function(inp)
     if inp==dragInput and dragging then
         local d=inp.Position-dragStart
-        Frame.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,
-                                  startPos.Y.Scale,startPos.Y.Offset+d.Y)
+        Frame.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X, startPos.Y.Scale,startPos.Y.Offset+d.Y)
     end
 end)
 
--- ════════════════════════════════════════════════════════════
---  EVENTOS DE BOTONES
--- ════════════════════════════════════════════════════════════
 FloatBtn.MouseButton1Click:Connect(function() Frame.Visible=not Frame.Visible end)
-
 LetterBox:GetPropertyChangedSignal("Text"):Connect(function()
     local u=string.upper(LetterBox.Text:sub(1,1))
     if LetterBox.Text~=u then LetterBox.Text=u end
@@ -484,42 +425,30 @@ end)
 
 AutoLetterBtn.MouseButton1Click:Connect(function()
     local found=detectGameLetter()
-    if found then
-        currentLetter=found; LetterBox.Text=found
-        addLog("🎯 Letra: "..found)
-    else
-        addLog("⚠️ Letra no detectada")
-    end
+    if found then currentLetter=found; LetterBox.Text=found; addLog("🎯 Letra: "..found) else addLog("⚠️ Letra no detectada") end
 end)
 
--- ESCANEAR: muestra TODO lo que encuentra en TablaBasta
 ScanBtn.MouseButton1Click:Connect(function()
     local gg = getGameGui()
-    addLog("🔎 " .. (gg and ("TablaBasta ✅") or "TablaBasta ❌ → PlayerGui"))
+    addLog("🔎 " .. (gg and ("NewTablaBastagui ✅") or "NewTablaBastagui ❌ → PlayerGui"))
     local mapped, allBoxes = findTextBoxes()
     addLog(string.format("TextBoxes totales: %d", #allBoxes))
-    -- Imprimir los primeros 4 con su nombre y placeholder
     for i, box in ipairs(allBoxes) do
         if i > 4 then break end
         local ph = (box.PlaceholderText ~= "") and box.PlaceholderText or "—"
         addLog(string.format(" [%d] %s | ph=%s", i, box.Name, ph:sub(1,12)))
     end
     local nMapped=0; for _ in pairs(mapped) do nMapped=nMapped+1 end
-    addLog(string.format("Identificadas: %d | Botón: %s",
-        nMapped, findBastaButton() and "✅" or "❌"))
+    addLog(string.format("Identificadas: %d | Botón: %s", nMapped, findBastaButton() and "✅" or "❌"))
 end)
 
 local function refreshUI()
     if isActive then
-        StatusLbl.Text="Estado: ✅ ACTIVO"
-        StatusLbl.TextColor3=Color3.fromRGB(50,215,70)
-        ToggleBot.Text="🛑  DESACTIVAR  AUTO-BOT"
-        ToggleBot.BackgroundColor3=Color3.fromRGB(110,25,25)
+        StatusLbl.Text, StatusLbl.TextColor3 = "Estado: ✅ ACTIVO", Color3.fromRGB(50,215,70)
+        ToggleBot.Text, ToggleBot.BackgroundColor3 = "🛑  DESACTIVAR  AUTO-BOT", Color3.fromRGB(110,25,25)
     else
-        StatusLbl.Text="Estado: ⛔ INACTIVO"
-        StatusLbl.TextColor3=Color3.fromRGB(255,75,75)
-        ToggleBot.Text="⚡  ACTIVAR  AUTO-BOT"
-        ToggleBot.BackgroundColor3=Color3.fromRGB(40,40,82)
+        StatusLbl.Text, StatusLbl.TextColor3 = "Estado: ⛔ INACTIVO", Color3.fromRGB(255,75,75)
+        ToggleBot.Text, ToggleBot.BackgroundColor3 = "⚡  ACTIVAR  AUTO-BOT", Color3.fromRGB(40,40,82)
     end
 end
 
@@ -538,9 +467,7 @@ ToggleBot.MouseButton1Click:Connect(function()
                 addLog("📡 ForceSubmit! val="..tostring(val))
                 local det=detectGameLetter()
                 if det and det~="" then currentLetter=det; LetterBox.Text=det end
-                task.delay(math.random(30,120)/100, function()
-                    if isActive then doSubmit() end
-                end)
+                task.delay(math.random(30,120)/100, function() if isActive then doSubmit() end end)
             end)
         end
     else
@@ -552,12 +479,10 @@ end)
 ManualBtn.MouseButton1Click:Connect(function()
     if currentLetter=="" then
         local det=detectGameLetter()
-        if det then currentLetter=det; LetterBox.Text=det
-        else addLog("⚠️ Escribe la letra"); return end
+        if det then currentLetter=det; LetterBox.Text=det else addLog("⚠️ Escribe la letra"); return end
     end
     doSubmit()
 end)
 
--- ════════════════════════════════════════════════════════════
-print("[BastaBot] v5 ✅ cargado")
-addLog("v5 — TablaBasta targeted. Usa 🔎")
+print("[BastaBot] v5.1 ✅ cargado")
+addLog("v5.1 — NewTablaBastagui targeted. Usa 🔎")
