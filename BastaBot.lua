@@ -181,6 +181,7 @@ local DB = {
 -- ════════════════════════════════════════════
 local isActive      = false
 local currentLetter = "A"
+local currentRound  = 1             -- ronda real, la manda el server por ForceSubmitAnswers
 local autoConn      = nil
 local logLines      = {}            -- historial de 4 líneas para el mini-log
 
@@ -203,6 +204,18 @@ task.spawn(function()
 
     if SubmitAnswers    then print("[BastaBot] ✅ SubmitAnswers encontrado")    else warn("[BastaBot] ❌ SubmitAnswers NO encontrado")    end
     if ForceSubmitEvent then print("[BastaBot] ✅ ForceSubmitAnswers encontrado") else warn("[BastaBot] ❌ ForceSubmitAnswers NO encontrado") end
+
+    -- Listener pasivo: mantiene currentRound sincronizado desde
+    -- el arranque, aunque el bot todavía no esté activado. Así,
+    -- si activás el bot a mitad de partida, ya tiene la ronda
+    -- correcta y no manda un round viejo/incorrecto.
+    if ForceSubmitEvent then
+        ForceSubmitEvent.OnClientEvent:Connect(function(val)
+            if typeof(val) == "number" then
+                currentRound = val
+            end
+        end)
+    end
 end)
 
 -- ════════════════════════════════════════════
@@ -268,8 +281,12 @@ local function sendAnswers()
         answers.Nombre, answers.Objeto, answers.Animal))
 
     -- 3. FireServer con pcall para capturar el error real
+    -- IMPORTANTE: el 2do argumento tiene que ser la ronda REAL
+    -- (la que manda el server por ForceSubmitAnswers), no un
+    -- valor fijo. Si mandás una ronda vieja/incorrecta el
+    -- server descarta la respuesta sin tirar error de Lua.
     local ok, err = pcall(function()
-        SubmitAnswers:FireServer(answers, 1)
+        SubmitAnswers:FireServer(answers, currentRound)
     end)
 
     if ok then
@@ -526,8 +543,15 @@ ToggleBot.MouseButton1Click:Connect(function()
         else
             addLog("👂 Conectado a ForceSubmitAnswers")
             autoConn = ForceSubmitEvent.OnClientEvent:Connect(function(val)
+                -- Guardamos SIEMPRE el round real, incluso si el
+                -- bot está inactivo, para no quedar desincronizados
+                -- si se reactiva después.
+                if typeof(val) == "number" then
+                    currentRound = val
+                end
+
                 if not isActive then return end
-                addLog(string.format("📡 ForceSubmit recibido (val=%s)", tostring(val)))
+                addLog(string.format("📡 ForceSubmit recibido (round=%s)", tostring(val)))
                 -- Delay humano 0.4 – 1.8 s
                 task.delay(math.random(40,180)/100, function()
                     if isActive then sendAnswers() end
