@@ -6,8 +6,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local bastaEvents = ReplicatedStorage:WaitForChild("BastaEvents", 5)
 local submitAnswersEvent = bastaEvents and bastaEvents:WaitForChild("SubmitAnswers", 5)
 local startRoundEvent = bastaEvents and bastaEvents:WaitForChild("StartRound", 5)
+local forceSubmitEvent = bastaEvents and bastaEvents:WaitForChild("ForceSubmitAnswers", 5)
 
--- Base de datos completa (4 respuestas por categoría)
+-- Base de datos completa
 local db = {
     A = {n={"Agustín","Ana","Alejo","Alma"}, f={"Ananá","Arándano","Avellana","Almendra"}, c={"Amarillo","Azul","Añil","Arena"}, l={"Argentina","Alemania","Atenas","Angola"}, a={"Araña","Águila","Abeja","Alce"}, o={"Anillo","Auto","Armario","Arpa"}},
     B = {n={"Bruno","Bárbara","Bautista","Belén"}, f={"Banana","Bergamota","Batata","Brócoli"}, c={"Blanco","Bordó","Beige","Bronce"}, l={"Bolivia","Brasil","Bélgica","Bogotá"}, a={"Burro","Búho","Ballena","Buitre"}, o={"Barco","Botella","Bici","Bolsa"}},
@@ -31,7 +32,7 @@ local db = {
     Z = {n={"Zacarías","Zoe","Zahir","Zaida"}, f={"Zanahoria","Zapallo","Zarzamora","Zapote"}, c={"Zafiro","Zinc","Zanahoria","Zafre"}, l={"Zambia","Zimbabue","Zaragoza","Zúrich"}, a={"Zorro","Zorrino","Zángano","Zebra"}, o={"Zapato","Zócalo","Zapatilla","Zarzo"}}
 }
 
--- Configuración de GUI Chiquita
+-- Configuración de la GUI Chiquita
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "BastaBotGui"
 screenGui.ResetOnSpawn = false
@@ -48,7 +49,7 @@ toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 250) -- Tamaño bien compacto
+mainFrame.Size = UDim2.new(0, 220, 0, 250)
 mainFrame.Position = UDim2.new(0.5, -110, 0.5, -125)
 mainFrame.BackgroundColor3 = Color3.fromRGB(245, 240, 225)
 mainFrame.BorderSizePixel = 2
@@ -108,35 +109,6 @@ statusText.Parent = mainFrame
 local autoEnabled = true
 local lastRoundId = -1
 
--- Función para construir el paquete de respuestas (Prueba las dos variantes posibles)
-local function construirRespuestas(letra)
-    local data = db[letra]
-    if not data then return nil end
-
-    -- Formato 1: Diccionario usando las claves estándar del juego
-    local formatoDict = {
-        Name = data.n[1],
-        Fruit = data.f[1],
-        Color = data.c[1],
-        ["City/Country"] = data.l[1],
-        CityCountry = data.l[1],
-        Animal = data.a[1],
-        Object = data.o[1]
-    }
-
-    -- Formato 2: Lista ordenada
-    local formatoArray = {
-        data.n[1],
-        data.f[1],
-        data.c[1],
-        data.l[1],
-        data.a[1],
-        data.o[1]
-    }
-
-    return formatoDict, formatoArray
-end
-
 -- Función principal para enviar al servidor
 local function mandarRespuestasAlServidor(letra, roundId)
     if not submitAnswersEvent then
@@ -144,30 +116,42 @@ local function mandarRespuestasAlServidor(letra, roundId)
         return
     end
 
-    local dict, array = construirRespuestas(letra)
-    if not dict then
+    local data = db[letra]
+    if not data then
         statusText.Text = "No hay datos cargados para la letra: " .. tostring(letra)
         return
     end
 
+    local rng = math.random(1, 4) -- Elegimos una de las 4 opciones al azar para no poner siempre lo mismo
+
+    -- ACÁ ESTÁ LA MAGIA: Las llaves exactas que sacaste del Cobalt
+    local paquetePerfecto = {
+        Nombre = data.n[rng],
+        Objeto = data.o[rng],
+        Color = data.c[rng],
+        CiudadPais = data.l[rng],
+        Fruta = data.f[rng],
+        Animal = data.a[rng]
+    }
+
     local idUsar = roundId or 1
 
-    -- Enviamos la estructura de diccionario (la más común en Roblox)
-    submitAnswersEvent:FireServer(dict, idUsar)
+    -- Enviamos al servidor
+    submitAnswersEvent:FireServer(paquetePerfecto, idUsar)
     
-    -- También enviamos por backup el formato lista en caso de que use orden por índice
-    submitAnswersEvent:FireServer(array, idUsar)
+    -- Le metemos el evento "Stop/Basta" para que corte el tiempo automáticamente si existe
+    if forceSubmitEvent then
+        pcall(function() forceSubmitEvent:FireServer(idUsar) end)
+    end
 
-    statusText.Text = string.format(" Enviado para letra '%s' (Ronda %s):\n• %s\n• %s\n• %s\n• %s\n• %s\n• %s",
-        letra, tostring(idUsar), dict.Name, dict.Fruit, dict.Color, dict.CityCountry, dict.Animal, dict.Object)
+    statusText.Text = string.format(" Enviado: '%s' (Ronda %s)\n\n¡Respuestas mandadas con éxito!", letra, tostring(idUsar))
 end
 
--- Escuchar evento automático de inicio de ronda
+-- Escuchar evento automático
 if startRoundEvent then
     startRoundEvent.OnClientEvent:Connect(function(data)
         if not autoEnabled then return end
         
-        -- Evitamos duplicados en la misma ronda
         if data and data.roundId and data.roundId == lastRoundId then return end
         if data and data.roundId then lastRoundId = data.roundId end
 
@@ -175,13 +159,14 @@ if startRoundEvent then
         local roundId = data and (data.roundId or data.round) or 1
 
         if letra then
-            task.wait(1.2) -- Pequeño delay de red para simular tipeo humano
+            statusText.Text = "Detectada letra " .. letra .. ". Mandando en 1 seg..."
+            task.wait(math.random(1, 2)) -- Simulamos que tardamos un toque en escribir
             mandarRespuestasAlServidor(letra, roundId)
         end
     end)
 end
 
--- Botones manuales de la GUI
+-- Botones manuales
 autoToggle.MouseButton1Click:Connect(function()
     autoEnabled = not autoEnabled
     autoToggle.Text = autoEnabled and "Auto-Submit: ON" or "Auto-Submit: OFF"
@@ -201,7 +186,7 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
--- Sistema para arrastrar la ventana con Touch/Mouse
+-- Sistema Touch para arrastrar en celu
 local UserInputService = game:GetService("UserInputService")
 local dragging, dragStart, startPos
 
@@ -212,9 +197,7 @@ mainFrame.InputBegan:Connect(function(input)
         startPos = mainFrame.Position
         
         input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
         end)
     end
 end)
@@ -225,4 +208,3 @@ UserInputService.InputChanged:Connect(function(input)
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-
